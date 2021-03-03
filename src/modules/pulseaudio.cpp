@@ -10,7 +10,8 @@ waybar::modules::Pulseaudio::Pulseaudio(const std::string &id, const Json::Value
       muted_(false),
       source_idx_(0),
       source_volume_(0),
-      source_muted_(false) {
+      source_muted_(false),
+      source_running_(false) {
   mainloop_ = pa_threaded_mainloop_new();
   if (mainloop_ == nullptr) {
     throw std::runtime_error("pa_mainloop_new() failed.");
@@ -139,6 +140,21 @@ void waybar::modules::Pulseaudio::sourceInfoCb(pa_context * /*context*/, const p
     auto source_volume = static_cast<float>(pa_cvolume_avg(&(i->volume))) / float{PA_VOLUME_NORM};
     pa->source_volume_ = std::round(source_volume * 100.0F);
     pa->source_idx_ = i->index;
+
+    // TODO:
+    // states from doc:
+    //    PA_SINK_RUNNING — Running, sink is playing and used by at least one non-corked sink-input
+    //    PA_SINK_IDLE — When idle, the sink is playing but there is no non-corked sink-input attached to it
+    //    PA_SINK_SUSPENDED — When suspended, actual sink access can be closed, for instance
+    //    and there are other states
+    //
+    // source state changes observation:
+    //   when enable mic: SUSPEND->RUNNING
+    //   when disable mic: RUNNING->IDLE->SUSPENDED
+    //
+    // Question: should we consider IDLE as enabled mic or as disabled?
+    pa->source_running_ = (i->state == PA_SOURCE_RUNNING);
+
     pa->source_muted_ = i->mute != 0;
     pa->source_desc_ = i->description;
     pa->source_port_name_ = i->active_port != nullptr ? i->active_port->name : "Unknown";
@@ -245,7 +261,9 @@ auto waybar::modules::Pulseaudio::update() -> void {
       format_source = config_["format-source"].asString();
     }
   }
-  format_source = fmt::format(format_source, fmt::arg("volume", source_volume_));
+  format_source = fmt::format(format_source,
+      fmt::arg("icon_source_running", source_running_? "" : ""),
+      fmt::arg("volume", source_volume_));
   label_.set_markup(fmt::format(format,
                                 fmt::arg("desc", desc_),
                                 fmt::arg("volume", volume_),

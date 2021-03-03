@@ -43,6 +43,7 @@ class Pulseaudio : public ALabel {
   uint32_t    source_idx_{0};
   uint16_t    source_volume_;
   bool        source_muted_;
+  bool        source_running_;
   std::string source_port_name_;
   std::string source_desc_;
   std::string default_source_name_;
